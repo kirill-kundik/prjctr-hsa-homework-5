@@ -1,0 +1,112 @@
+version: "3.9"
+services:
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      INFO: 1
+      IMAGES: 1
+      NETWORKS: 1
+      NODES: 1
+      PLUGINS: 1
+      SERVICES: 1
+      SYSTEM: 1
+      TASKS: 1
+      VOLUMES: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "2375"
+
+  telegraf:
+    image: telegraf:1.25-alpine
+    volumes:
+      - ./telegraf/etc/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    depends_on:
+      - influxdb
+      - socket-proxy
+      - elasticsearch
+      - mongodb
+    ports:
+      - "8125/udp"
+
+  influxdb:
+    image: influxdb:1.8-alpine
+    env_file: .env
+    ports:
+      - "8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+
+  grafana:
+    image: grafana/grafana:9.3.0
+    depends_on:
+      - influxdb
+    env_file: .env
+    ports:
+      - "3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/dashboards/:/var/lib/grafana/dashboards/
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+    environment:
+      - bootstrap.memory_lock=true
+      - cluster.name=docker-cluster
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-XX:UseAVX=2 -Xms1g -Xmx1g
+      - ingest.geoip.downloader.enabled=false
+    ulimits:
+      memlock:
+        hard: -1
+        soft: -1
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200"
+    healthcheck:
+      interval: 30s
+      retries: 10
+      test: curl -s http://localhost:9200/_cluster/health | grep -vq ""status":"red""
+
+  mongodb:
+    image: mongo:latest
+    env_file: .env
+    ports:
+      - "27017"
+    volumes:
+      - mongo_data:/data/db
+    command:
+      mongod --quiet --logpath /dev/null
+
+  app:
+    build:
+      context: app
+    restart: always
+    depends_on:
+      - telegraf
+      - elasticsearch
+      - mongodb
+    env_file: .env
+    ports:
+      - "8080"
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/etc/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "127.0.0.1:8181:80"
+    depends_on:
+      - app
+
+
+volumes:
+  grafana_data: { }
+  influxdb_data: { }
+  elastic_data: { }
+  mongo_data: { }
