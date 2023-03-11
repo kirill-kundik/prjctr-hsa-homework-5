@@ -51,8 +51,10 @@ def generate_urls(num=100):
 
 
 def main():
+    rows = generate_urls(1000)
+
     with open(SIEGE_URLS_PATH, "w") as f:
-        for row in generate_urls():
+        for row in rows:
             print(row, file=f)
 
 
