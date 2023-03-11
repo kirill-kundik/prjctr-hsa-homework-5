@@ -4,7 +4,7 @@ concurrency=(10 25 50 100 150 250)
 total_tests=${#concurrency[@]}
 siege_location=./siege
 
-echo "\nRunning all siege tests"
+echo -e "\n\nRunning all siege tests"
 echo "Each test will run for 180 seconds with different concurrency levels"
 echo "Siege folder with urls.txt and output logs: $siege_location"
 echo "Total $total_tests tests: ${concurrency[*]} concurrency levels"
